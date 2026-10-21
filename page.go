@@ -59,4 +59,9 @@ type PageOptions struct {
 	// names no browser, older pages: "Version/17.0 Safari/605.1.15" makes the
 	// page look like Safari.
 	UserAgentSuffix string
+	// AllowAutoplay lets the page play audio and video without a click or
+	// a key press first (macOS). By default WebKit holds back a play that
+	// no gesture started, which is right for the web at large: allow it
+	// only for pages the app trusts, such as its own player's.
+	AllowAutoplay bool
 }

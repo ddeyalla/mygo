@@ -365,7 +365,10 @@ type WindowOptions struct {
 	// UserAgentSuffix is appended to UserAgent, or to the webview's own
 	// user agent, after a space. The public package trims it.
 	UserAgentSuffix string
-	Zoom            float64
+	// AllowAutoplay lets media play with no gesture first (macOS,
+	// WKWebViewConfiguration.mediaTypesRequiringUserActionForPlayback).
+	AllowAutoplay bool
+	Zoom          float64
 	// TabFocusesLinks makes Tab reach links and form controls that are not
 	// text fields (macOS, WKPreferences.tabFocusesLinks); the other
 	// platforms reach them already.
