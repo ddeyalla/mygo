@@ -368,6 +368,9 @@ type WindowOptions struct {
 	// AllowAutoplay lets media play with no gesture first (macOS,
 	// WKWebViewConfiguration.mediaTypesRequiringUserActionForPlayback).
 	AllowAutoplay bool
+	// RunWhenHidden keeps a hidden page from being throttled or suspended
+	// (macOS 14 and later, WKPreferences.inactiveSchedulingPolicy).
+	RunWhenHidden bool
 	Zoom          float64
 	// TabFocusesLinks makes Tab reach links and form controls that are not
 	// text fields (macOS, WKPreferences.tabFocusesLinks); the other

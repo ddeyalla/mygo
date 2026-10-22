@@ -367,6 +367,10 @@ func (w *window) createWebView(content NSRect) {
 		send(cfg, "setMediaTypesRequiringUserActionForPlayback:", 0)
 	}
 	prefs := send(cfg, "preferences")
+	if o.RunWhenHidden && respondsTo(prefs, "setInactiveSchedulingPolicy:") {
+		// WKInactiveSchedulingPolicyNone: a hidden page runs as a shown one.
+		send(prefs, "setInactiveSchedulingPolicy:", 2)
+	}
 	send(prefs, "setValue:forKey:", uintptr(nsBool(o.DevTools)), uintptr(nsString("developerExtrasEnabled")))
 	send(prefs, "setValue:forKey:", uintptr(nsBool(true)), uintptr(nsString("allowFileAccessFromFileURLs")))
 	if respondsTo(prefs, "setElementFullscreenEnabled:") {

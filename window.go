@@ -523,6 +523,7 @@ func (w *Window) platformOptions(o *WindowOptions) *platform.WindowOptions {
 		UserAgent:         po.UserAgent,
 		UserAgentSuffix:   strings.TrimSpace(po.UserAgentSuffix),
 		AllowAutoplay:     po.AllowAutoplay,
+		RunWhenHidden:     po.RunWhenHidden,
 		Zoom:              po.ZoomFactor,
 		// Tab reaches every control, as desktop apps do, unless the app
 		// asked for Safari's behavior.

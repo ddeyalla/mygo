@@ -64,4 +64,10 @@ type PageOptions struct {
 	// no gesture started, which is right for the web at large: allow it
 	// only for pages the app trusts, such as its own player's.
 	AllowAutoplay bool
+	// RunWhenHidden keeps the page running at full speed while its window
+	// is hidden or covered (macOS 14 and later). By default WebKit
+	// throttles, and then suspends, a page that no one can see, which stops
+	// its timers and requests: a page that plays audio or keeps a
+	// connection from a hidden window needs this.
+	RunWhenHidden bool
 }
