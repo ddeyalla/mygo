@@ -182,6 +182,10 @@ type view struct {
 
 	focused    bool
 	blinkStart time.Time
+	// blinkReset tells that a key went to the program since the last
+	// frame built, which starts the blink again as that frame builds,
+	// on the frames' clock.
+	blinkReset bool
 	caretCell  [2]int // the cursor's cell, for input methods
 	// selecting tells that the primary button selects; reporting that a
 	// press went to the program, which gets the release too.
@@ -314,18 +318,15 @@ func (v *view) build(c *ui.Context, e ui.Element) {
 		v.reads = append(v.reads, reads...)
 		v.answerReads(c, term)
 	}
+	if focused != v.focused || v.blinkReset {
+		v.blinkStart, v.blinkReset = c.Now(), false
+	}
 	if focused != v.focused {
 		v.focused = focused
-		v.blinkStart = c.Now()
 		if !focused {
 			// Input methods drop their composition with the focus.
 			v.preedit, v.pending = "", nil
 		}
-	}
-	// The cursor blinks, every 600 ms, while the terminal has the focus.
-	if v.focused && v.cursor.Blinking && v.cursor.Visible {
-		since := c.Now().Sub(v.blinkStart)
-		c.After(blinkPeriod - since%blinkPeriod)
 	}
 	if v.ticking {
 		c.After(40 * time.Millisecond)
@@ -822,7 +823,7 @@ func (v *view) typed(text string) {
 // as Ghostty does when it sends something.
 func (v *view) sendKey(k vt.KeyEvent) {
 	if v.encodeKey(k, true) {
-		v.blinkStart = time.Now()
+		v.blinkReset = true
 	}
 }
 
@@ -862,7 +863,7 @@ func (v *view) sendText(text string) {
 	}
 	t.mu.Unlock()
 	t.Send([]byte(text))
-	v.blinkStart = time.Now()
+	v.blinkReset = true
 }
 
 // copy copies the selection, letting go of it with clear, and reports
