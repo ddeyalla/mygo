@@ -511,6 +511,7 @@ type Terminal struct {
 	held      bool
 	heldSince time.Time
 
+	hidden   atomic.Bool            // suppresses frames while the host omits the view
 	draw     atomic.Pointer[func()] // asks for a frame of the view
 	done     chan struct{}
 	doneOnce sync.Once
@@ -1254,9 +1255,18 @@ func (t *Terminal) renderHold(held bool) {
 	t.rmu.Unlock()
 }
 
+// SetVisible controls whether the terminal asks its view to redraw.
+// Hidden terminals still process output and deliver callbacks. The default is
+// visible; showing a hidden terminal requests a fresh frame.
+func (t *Terminal) SetVisible(visible bool) {
+	if t.hidden.Swap(!visible) && visible {
+		t.redraw()
+	}
+}
+
 // redraw asks the view for a frame.
 func (t *Terminal) redraw() {
-	if f := t.draw.Load(); f != nil {
+	if f := t.draw.Load(); f != nil && !t.hidden.Load() {
 		(*f)()
 	}
 }
