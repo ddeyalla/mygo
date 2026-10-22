@@ -77,3 +77,27 @@ func TestOwnThemeIgnoresPreferences(t *testing.T) {
 		t.Errorf("a theme of the app's took the desktop's accent: %v", accent)
 	}
 }
+
+func TestPreferencesReachThePainter(t *testing.T) {
+	var seen, painted Preferences
+	tt := coreNewTester(func(c *context) {
+		seen = c.Preferences()
+		coreBox(c).Size(10, 10).Draw(func(p *Painter, r Rect) {
+			painted = p.Preferences()
+		})
+	}, 200, 100)
+	if seen.ReduceTransparency || painted.ReduceTransparency {
+		t.Fatal("transparency is reduced before the desktop asks")
+	}
+	tt.SetPreferences(Preferences{ReduceTransparency: true, HighContrast: true})
+	if !seen.ReduceTransparency || !seen.HighContrast {
+		t.Errorf("the view sees %+v", seen)
+	}
+	if !painted.ReduceTransparency || !painted.HighContrast {
+		t.Errorf("the painter sees %+v", painted)
+	}
+	tt.SetPreferences(Preferences{})
+	if seen.ReduceTransparency || painted.ReduceTransparency {
+		t.Error("transparency is still reduced after the desktop stops asking")
+	}
+}

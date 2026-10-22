@@ -23,6 +23,10 @@ ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(88).PassThrough().
 	Material(glass.Blur{Radius: 6, Mask: &ui.LinearGradient{From: ui.RGB(0, 0, 0), To: ui.Transparent, Angle: 180}})
 ```
 
+Under the desktop's Reduce Transparency they draw opaque, and under
+Increase Contrast the glass shows less through and its rim stands out
+(`ui.Preferences`).
+
 See [the documentation](../../docs/plugins/glass.md), and the Glass page of
 `examples/gallery`.
 

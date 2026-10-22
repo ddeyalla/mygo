@@ -155,6 +155,34 @@ rather than at the window's edge, the blur differs a little within a few
 pixels of that edge from one blurring each pixel by its own amount, as
 each step reads what is around the element unblurred.
 
+## Accessibility
+
+The glass and the scroll edges follow the desktop's accessibility
+settings, `ui.Preferences`, as AppKit's Liquid Glass does, with nothing
+to set:
+
+- **Reduce Transparency** (`ReduceTransparency`: macOS's Reduce
+  Transparency, Windows's transparency effects turned off) makes them
+  opaque. `glass.Glass`, as a material or in `glass.Paint`, fills its
+  shape with a solid color, the glass's own over the window: the
+  material's tone of the theme's `Background`, white in the default light
+  theme and a gray of about 21% in the dark one. A `Tint` colors it as it
+  colors the glass, and a hairline rim, a device pixel of black at 12% in
+  light mode or white at 14% in dark mode, keeps its edge. Nothing behind
+  it shows, blurred or bent. A `glass.ScrollEdge`, soft or hard, is the
+  background, opaque, with the hard edge's hairline along its other edge,
+  as a bar's. A soft edge's element is 10 DIPs longer than the bar, so the
+  opaque background reaches that much past it.
+- **Increase Contrast** (`HighContrast`) makes the glass less
+  translucent and its rim stronger: the lightness it maps what is behind
+  to goes half way toward its solid color, the rim is lit more and
+  wider, and a hairline of a DIP, black at 35% in light mode or white at
+  40% in dark mode, goes around it, opaque glass's too.
+
+A drawing of your own reads them with `p.Preferences()`, a view with
+`c.Preferences()`. `glass.Blur` keeps blurring under Reduce Transparency:
+it has no color of its own to turn opaque.
+
 ## How it looks like macOS
 
 The glass follows macOS 27's, measured from AppKit's `NSGlassEffectView`,

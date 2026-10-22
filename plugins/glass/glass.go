@@ -26,6 +26,12 @@ import (
 // with it, in place of a background, shaped by its Radius. What was
 // painted under the element shows through it, as content that scrolls
 // under a bar placed over it with Absolute, and other glass.
+//
+// Where the desktop asks for less transparency (ui.Preferences.
+// ReduceTransparency), the glass is opaque instead: a solid color close to
+// the glass's own over the window, tinted, with a hairline rim, nothing
+// behind it showing. Where it asks for more contrast (HighContrast), less
+// shows through, and the rim stands out.
 type Glass struct {
 	// Style is the glass's material.
 	Style Style
@@ -125,6 +131,12 @@ func Paint(p *ui.Painter, r ui.Rect, radius float32, g Glass) {
 // times that, mirroring what is inside it, as AppKit's do; light comes
 // from above and below, along a rim a pixel wide, and the pane casts no
 // shadow, as NSGlassEffectView's and the glass bezel's do not.
+//
+// It follows the desktop's accessibility settings, as AppKit's does:
+// where the desktop asks for less transparency (ui.Preferences.
+// ReduceTransparency), the glass is opaque (solid); where it asks for more
+// contrast (HighContrast), less of what is behind shows through, and its
+// rim is lit more, with a hairline around it.
 func paint(p *ui.Painter, box ui.Rect, radii [4]float32, g Glass) {
 	if box.W <= 0 || box.H <= 0 {
 		return
@@ -150,10 +162,77 @@ func paint(p *ui.Painter, box ui.Rect, radii [4]float32, g Glass) {
 		mat.blur = min(max(m*0.035, 1), 10) * s
 		mat.low, mat.high, mat.curve, mat.saturation = 0.541, 1, 1.2, 1
 	}
+	prefs := p.Preferences()
+	if prefs.ReduceTransparency {
+		solid(p, box, radii, g, &mat, prefs.HighContrast)
+		return
+	}
+	if prefs.HighContrast {
+		// Less of what is behind shows through: the tones it maps to
+		// half way to the glass's own over the background, and the rim
+		// lit more and wider, with a hairline around it that stands out.
+		l := solidTone(p, &mat)
+		mat.low += (l - mat.low) * highContrastTone
+		mat.high += (l - mat.high) * highContrastTone
+		mat.rim, mat.rimWidth = 0.5, 1.5
+	}
 	if g.Tint.A > 0 {
 		mat.tint, mat.wideTint = p.EffectColor(g.Tint)
 		mat.tint[3] *= 0.88
 		mat.wideTint[3] *= 0.88
 	}
 	p.Effect(Effect, box, radii, mat.blur, mat.params())
+	if prefs.HighContrast {
+		rim(p, box, radii, true)
+	}
+}
+
+// highContrastTone is how far HighContrast takes the tones the glass maps
+// what is behind it to toward its solid color: half way.
+const highContrastTone = 0.5
+
+// solidColor is the glass's color where the desktop asks for less
+// transparency (ui.Preferences.ReduceTransparency): the material's tone
+// of the theme's background, the glass's own over the window, as AppKit's
+// glass turns opaque; in the default themes, white in light mode, and a
+// gray of about 21% in dark mode.
+func solidColor(p *ui.Painter, m *material) ui.Color {
+	bg := p.Theme().Background
+	c := tone([3]float32{float32(bg.R) / 255, float32(bg.G) / 255, float32(bg.B) / 255}, m)
+	return ui.Color{R: byte(c[0]*255 + 0.5), G: byte(c[1]*255 + 0.5), B: byte(c[2]*255 + 0.5), A: 255}
+}
+
+// solidTone is the lightness of solidColor.
+func solidTone(p *ui.Painter, m *material) float32 {
+	c := solidColor(p, m)
+	return (0.2126*float32(c.R) + 0.7152*float32(c.G) + 0.0722*float32(c.B)) / 255
+}
+
+// solid paints the glass opaque, where the desktop asks for less
+// transparency: its solid color, tinted as the glass is, in its shape,
+// with a hairline rim, and nothing blurred or bent, nothing behind it
+// showing.
+func solid(p *ui.Painter, box ui.Rect, radii [4]float32, g Glass, m *material, contrast bool) {
+	fill(p, box, radii, solidColor(p, m))
+	if g.Tint.A > 0 {
+		fill(p, box, radii, g.Tint.Alpha(0.88))
+	}
+	rim(p, box, radii, contrast)
+}
+
+// rim strokes a hairline rim just inside the glass's edge, around opaque
+// glass and, under HighContrast, around any: a device pixel of black at 12% in light mode, white at 14% in dark mode;
+// under HighContrast, a DIP of black at 35%, white at 40%.
+func rim(p *ui.Painter, box ui.Rect, radii [4]float32, contrast bool) {
+	dark := p.Theme().Dark
+	c, w := ui.RGBA(0, 0, 0, 0.12), 1/p.Scale()
+	switch {
+	case contrast && dark:
+		c, w = ui.RGBA(255, 255, 255, 0.4), 1
+	case contrast:
+		c, w = ui.RGBA(0, 0, 0, 0.35), 1
+	case dark:
+		c = ui.RGBA(255, 255, 255, 0.14)
+	}
+	stroke(p, box, radii, c, w)
 }

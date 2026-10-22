@@ -160,3 +160,10 @@ theme follows and a frame follows the changes of:
   times larger.
 - **`ReduceMotion`.** macOS's Reduce Motion, Windows's animation effects and
   GNOME's animations turned off: `Animate` goes to its target at once.
+- **`ReduceTransparency`.** macOS's Reduce Transparency, Windows's
+  transparency effects turned off, `prefers-reduced-transparency` in
+  browsers; Linux desktops have no such setting. Materials that show what
+  is under them, as the [glass plugin](../plugins/glass.md#accessibility)'s,
+  draw opaque.
+
+A material or a drawing reads them as it paints with `p.Preferences()`.
