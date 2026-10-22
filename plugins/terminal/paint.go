@@ -514,10 +514,11 @@ func (v *view) draw(p *ui.Painter, r ui.Rect) {
 	cur, curColor, curText, block := v.cursorRect(p.Now(), ox, oy, cw, ch)
 	// The cursor blinks, every 600 ms, while the terminal has the focus:
 	// the window is painted again as it shows or hides, without building
-	// the view.
-	if v.focused && v.cursor.Blinking && v.cursor.Visible {
+	// the view. Once blinkTimeout goes by, one last paint shows it, should
+	// it be hidden, and the window rests.
+	if v.cursor.Visible && v.blinking(p.Now()) {
 		since := p.Now().Sub(v.blinkStart)
-		p.After(blinkPeriod - since%blinkPeriod)
+		p.After(min(blinkPeriod-since%blinkPeriod, blinkTimeout-since))
 	}
 	if block {
 		p.Fill(cur, curColor, 0)
@@ -708,7 +709,7 @@ func (v *view) cursorRect(now time.Time, ox, oy, cw, ch float32) (r ui.Rect, c, 
 	if !cu.InView || !cu.Visible || v.preedit != "" {
 		return
 	}
-	if v.focused && cu.Blinking && now.Sub(v.blinkStart)%(2*blinkPeriod) >= blinkPeriod {
+	if v.blinking(now) && now.Sub(v.blinkStart)%(2*blinkPeriod) >= blinkPeriod {
 		return
 	}
 	c = color(v.colors.Foreground)

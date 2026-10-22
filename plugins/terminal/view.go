@@ -335,6 +335,19 @@ func (v *view) build(c *ui.Context, e ui.Element) {
 
 const blinkPeriod = 600 * time.Millisecond
 
+// blinkTimeout is how long the cursor blinks after the last key, or after
+// the terminal takes the focus, before it rests shown, as GTK's
+// gtk-cursor-blink-timeout does: a blinking cursor paints the window every
+// period, which wakes the process more than anything else at rest.
+const blinkTimeout = 10 * time.Second
+
+// blinking tells whether the cursor blinks at the time of the frame now:
+// a focused terminal's blinking cursor until blinkTimeout went by since
+// the blink started.
+func (v *view) blinking(now time.Time) bool {
+	return v.focused && v.cursor.Blinking && now.Sub(v.blinkStart) < blinkTimeout
+}
+
 // answerReads answers the program's reads of the clipboard as the frame
 // builds, in order, since an OSC 52 reply doesn't tell which read it
 // answers: reads allowed are served from the clipboard, which only the

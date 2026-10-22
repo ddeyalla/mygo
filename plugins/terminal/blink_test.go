@@ -9,8 +9,9 @@ import (
 
 // TestBlinkPaintsOnly: the cursor of a focused terminal blinks by painting
 // the window again, every 600 ms, without building the view, and looks as
-// it did: shown, then hidden, in phase with the last key typed, and
-// steady while the window has no focus.
+// it did: shown, then hidden, in phase with the last key typed or the
+// focus, until blinkTimeout goes by and it rests shown without drawing,
+// and steady while the window has no focus.
 func TestBlinkPaintsOnly(t *testing.T) {
 	loadLib(t)
 	th := &Theme{
@@ -42,6 +43,7 @@ func TestBlinkPaintsOnly(t *testing.T) {
 		return c.R > 0xe0 && c.G < 0x20 && c.B < 0x20
 	}
 	// Each half period shows the cursor, then hides it, from the focus.
+	b, p := builds, paints
 	tt.Advance(blinkPeriod / 2)
 	for i, want := range []bool{true, false, true, false} {
 		if got := shown(); got != want {
@@ -50,22 +52,39 @@ func TestBlinkPaintsOnly(t *testing.T) {
 		tt.Advance(blinkPeriod)
 	}
 
-	// A minute of a focused terminal at rest only paints.
-	b, p := builds, paints
-	tt.Advance(time.Minute)
-	t.Logf("a focused terminal at rest for a minute: %d builds, %d paints", builds-b, paints-p)
+	// It blinks, painting only, until blinkTimeout went by since the focus:
+	// a paint at each of the 16 turns, and one at the timeout that shows
+	// the cursor, since 10 s falls in a hidden half.
+	tt.Advance(blinkTimeout - 4*blinkPeriod - blinkPeriod/2 + 10*time.Millisecond)
+	t.Logf("a focused terminal blinking for %v: %d builds, %d paints", blinkTimeout, builds-b, paints-p)
 	if builds != b {
-		t.Errorf("the view built %d times in a minute at rest, want 0", builds-b)
+		t.Errorf("the view built %d times as the cursor blinked, want 0", builds-b)
 	}
-	if want := int(time.Minute / blinkPeriod); paints-p < want-1 || paints-p > want+1 {
-		t.Errorf("the window painted %d times in a minute at rest, want %d", paints-p, want)
+	if want := int(blinkTimeout/blinkPeriod) + 1; paints-p != want {
+		t.Errorf("the window painted %d times as the cursor blinked, want %d", paints-p, want)
+	}
+	if !shown() {
+		t.Error("the cursor does not show once it stops blinking")
 	}
 
-	// A key shows the cursor at once, and the blink goes on from it.
-	tt.Advance(blinkPeriod) // into a hidden half
-	if shown() {
-		t.Fatal("the cursor shows in the hidden half")
+	// Then it rests shown, and a minute at rest neither builds nor paints.
+	restsShown := func(after string) {
+		t.Helper()
+		b, p := builds, paints
+		for range 100 {
+			tt.Advance(blinkPeriod)
+			if !shown() {
+				t.Fatalf("the cursor hid at rest, %s", after)
+			}
+		}
+		t.Logf("a focused terminal at rest for a minute, %s: %d builds, %d paints", after, builds-b, paints-p)
+		if builds != b || paints != p {
+			t.Errorf("at rest for a minute, %s, the view built %d times and painted %d times, want none", after, builds-b, paints-p)
+		}
 	}
+	restsShown("after the focus")
+
+	// A key starts the blink again, in phase with the key.
 	tt.Type("a")
 	if !shown() {
 		t.Error("the cursor does not show after a key")
@@ -78,6 +97,21 @@ func TestBlinkPaintsOnly(t *testing.T) {
 	if shown() {
 		t.Error("the cursor still shows a period after the key")
 	}
+	tt.Advance(blinkTimeout)
+	if !shown() {
+		t.Error("the cursor does not show once it stops blinking after the key")
+	}
+	restsShown("after a key")
+
+	// So does the focus coming back.
+	tt.SetFocused(false)
+	tt.SetFocused(true)
+	tt.Advance(blinkPeriod + 10*time.Millisecond)
+	if shown() {
+		t.Error("the cursor still shows a period after the focus came back")
+	}
+	tt.Advance(blinkTimeout)
+	restsShown("after the focus came back")
 
 	// Without the focus, it is steady, and nothing draws.
 	tt.SetFocused(false)
