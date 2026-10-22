@@ -511,7 +511,15 @@ func (v *view) draw(p *ui.Painter, r ui.Rect) {
 		}
 	}
 	v.drawImages(p, belowText, ox, oy)
-	cur, curColor, curText, block := v.cursorRect(ox, oy, cw, ch)
+	cur, curColor, curText, block := v.cursorRect(p.Now(), ox, oy, cw, ch)
+	// The cursor blinks, every 600 ms, while the terminal has the focus:
+	// the window is painted again as it shows or hides, without building
+	// the view. Once blinkTimeout goes by, one last paint shows it, should
+	// it be hidden, and the window rests.
+	if v.cursor.Visible && v.blinking(p.Now()) {
+		since := p.Now().Sub(v.blinkStart)
+		p.After(min(blinkPeriod-since%blinkPeriod, blinkTimeout-since))
+	}
 	if block {
 		p.Fill(cur, curColor, 0)
 	}
@@ -693,14 +701,15 @@ func (v *view) linkColor(line *rowCache, h linkSpan) ui.Color {
 }
 
 // cursorRect returns the cursor's rectangle and colors, and whether it is
-// a filled block, whose text shows in the cursor's text color. A cursor
-// that does not show has an empty rectangle.
-func (v *view) cursorRect(ox, oy, cw, ch float32) (r ui.Rect, c, text ui.Color, block bool) {
+// a filled block, whose text shows in the cursor's text color, at the
+// time of the frame now. A cursor that does not show has an empty
+// rectangle.
+func (v *view) cursorRect(now time.Time, ox, oy, cw, ch float32) (r ui.Rect, c, text ui.Color, block bool) {
 	cu := v.cursor
 	if !cu.InView || !cu.Visible || v.preedit != "" {
 		return
 	}
-	if v.focused && cu.Blinking && time.Since(v.blinkStart)%(2*blinkPeriod) >= blinkPeriod {
+	if v.blinking(now) && now.Sub(v.blinkStart)%(2*blinkPeriod) >= blinkPeriod {
 		return
 	}
 	c = color(v.colors.Foreground)

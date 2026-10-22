@@ -13,6 +13,9 @@ import "github.com/egoist/mygo/ui"
 //
 // Its looks are macOS 27's, measured from SwiftUI's: the soft edge fades
 // the content into its background, with no blur; the hard edge frosts it.
+// Where the desktop asks for less transparency (ui.Preferences.
+// ReduceTransparency), either edge is the background, opaque, with the
+// hard edge's hairline, as a bar's.
 type ScrollEdge struct {
 	// Hard makes the edge hard: what is under it blurred by about 6 DIPs, its
 	// colors saturated, under 82% of the background, evenly, with a
@@ -36,6 +39,20 @@ func (e ScrollEdge) PaintMaterial(p *ui.Painter, box ui.Rect, radii [4]float32) 
 	if bg.A == 0 {
 		bg = p.Theme().Background
 	}
+	if p.Preferences().ReduceTransparency {
+		// Where the desktop asks for less transparency, either edge is
+		// the background, opaque, as a bar's: toned as the hard edge's,
+		// with its hairline, nothing blurred or faded.
+		c := bg
+		if e.Hard {
+			h := hardBackground(bg)
+			c = ui.Color{R: byte(h[0]*255 + 0.5), G: byte(h[1]*255 + 0.5), B: byte(h[2]*255 + 0.5)}
+		}
+		c.A = 255
+		fill(p, box, radii, c)
+		e.hairline(p, box)
+		return
+	}
 	if !e.Hard {
 		// The background, its alpha 0.85 at the bar's edge, falling
 		// linearly to 0 at the other, as AppKit's soft pocket replays the
@@ -51,13 +68,23 @@ func (e ScrollEdge) PaintMaterial(p *ui.Painter, box ui.Rect, radii [4]float32) 
 	// and lightened by 0.03, as AppKit's HardPocketContentBlur, under the
 	// background at 82.45%, desaturated to 0.947 and lightened by 0.03, as
 	// its HardPocketBackgroundReplay, evenly.
-	s := p.Scale()
-	b := hardEdgeBlur * s
-	c := toned([3]float32{float32(bg.R) / 255, float32(bg.G) / 255, float32(bg.B) / 255}, 0.947, 0.03)
-	p2, p3 := blurTone{saturation: 0.25, offset: 0.03, mix: 0.8245, color: c}.params()
+	b := hardEdgeBlur * p.Scale()
+	p2, p3 := blurTone{saturation: 0.25, offset: 0.03, mix: 0.8245, color: hardBackground(bg)}.params()
 	p.Effect(blurEffect, box, radii, b, [5][4]float32{{}, {b, b, -1, 0}, p2, p3})
-	// The hairline along the other edge, outside it, half a DIP: black at
-	// 10% in light mode, white at 7% in dark mode.
+	e.hairline(p, box)
+}
+
+// hardBackground is the background as a hard edge lays it over the
+// content: desaturated to 0.947 and lightened by 0.03, as AppKit's
+// HardPocketBackgroundReplay.
+func hardBackground(bg ui.Color) [3]float32 {
+	return toned([3]float32{float32(bg.R) / 255, float32(bg.G) / 255, float32(bg.B) / 255}, 0.947, 0.03)
+}
+
+// hairline paints the hard edge's hairline along its other edge, outside
+// it, half a DIP: black at 10% in light mode, white at 7% in dark mode.
+func (e ScrollEdge) hairline(p *ui.Painter, box ui.Rect) {
+	s := p.Scale()
 	line := ui.RGBA(0, 0, 0, 0.1)
 	if p.Theme().Dark {
 		line = ui.RGBA(255, 255, 255, 0.07)
@@ -105,10 +132,46 @@ func toned(c [3]float32, saturation, offset float32) [3]float32 {
 // fillGradient fills box, rounded by radii, with g: as one rounded
 // rectangle when its corners are alike, else as a path.
 func fillGradient(p *ui.Painter, box ui.Rect, radii [4]float32, g ui.LinearGradient) {
-	if radii[0] == radii[1] && radii[1] == radii[2] && radii[2] == radii[3] {
+	if alike(radii) {
 		p.FillGradient(box, g, radii[0])
 		return
 	}
+	p.FillPathGradient(roundedPath(box, radii), g)
+}
+
+// fill fills box, rounded by radii, with c: as one rounded rectangle when
+// its corners are alike, else as a path.
+func fill(p *ui.Painter, box ui.Rect, radii [4]float32, c ui.Color) {
+	if alike(radii) {
+		p.Fill(box, c, radii[0])
+		return
+	}
+	p.FillPath(roundedPath(box, radii), c)
+}
+
+// stroke strokes the outline of box, rounded by radii, width DIPs wide
+// inside its edge, with c.
+func stroke(p *ui.Painter, box ui.Rect, radii [4]float32, c ui.Color, width float32) {
+	if alike(radii) {
+		p.Stroke(box, c, radii[0], width)
+		return
+	}
+	// The path's stroke is about its line: the line half the width in.
+	h := width / 2
+	in := ui.Rect{X: box.X + h, Y: box.Y + h, W: box.W - width, H: box.H - width}
+	for i := range radii {
+		radii[i] = max(radii[i]-h, 0)
+	}
+	p.StrokePath(roundedPath(in, radii), width, c)
+}
+
+// alike reports whether the four corners are as round.
+func alike(radii [4]float32) bool {
+	return radii[0] == radii[1] && radii[1] == radii[2] && radii[2] == radii[3]
+}
+
+// roundedPath returns the outline of box, rounded by radii.
+func roundedPath(box ui.Rect, radii [4]float32) *ui.Path {
 	var path ui.Path
 	x0, y0, x1, y1 := box.X, box.Y, box.X+box.W, box.Y+box.H
 	// A cubic Bézier's control points for a quarter circle are k of the
@@ -120,5 +183,5 @@ func fillGradient(p *ui.Painter, box ui.Rect, radii [4]float32, g ui.LinearGradi
 	path.CubeTo(x1, y1-br+k*br, x1-br+k*br, y1, x1-br, y1).LineTo(x0+bl, y1)
 	path.CubeTo(x0+bl-k*bl, y1, x0, y1-bl+k*bl, x0, y1-bl).LineTo(x0, y0+tl)
 	path.CubeTo(x0, y0+tl-k*tl, x0+tl-k*tl, y0, x0+tl, y0).Close()
-	p.FillPathGradient(&path, g)
+	return &path
 }

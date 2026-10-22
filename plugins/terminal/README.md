@@ -15,6 +15,12 @@ mygo.NewWindow(mygo.WindowOptions{Title: "Terminal", Content: ui.View(func(c *ui
 })})
 ```
 
+A host that keeps terminals attached while their views are omitted can call
+`term.SetVisible(false)` to suppress redraw requests. Output and callbacks
+continue; `term.SetVisible(true)` requests a fresh frame. Terminals are visible
+by default. Apply visibility once after composing the frame, so a terminal
+that stays visible is not hidden and shown on every frame.
+
 See [the documentation](../../docs/plugins/terminal.md), and
 `examples/terminal` for an app.
 

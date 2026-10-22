@@ -152,7 +152,10 @@ term, err := terminal.New(terminal.Options{
   Studio Code's palette, and without a theme the terminal takes the one of
   the window's appearance as it changes. Programs may change the colors
   (OSC 4, 10, 11, 12).
-- `Cursor` and `NoBlink` set the cursor, which programs may change.
+- `Cursor` and `NoBlink` set the cursor, which programs may change. A
+  blinking cursor blinks while the terminal has the focus, for 10 seconds
+  after the last key or the focus, as GTK's `gtk-cursor-blink-timeout`,
+  then rests shown until the next.
 - `Scrollback` is about how many bytes of output to keep above the
   screen: 10 MB by default, none when negative.
 - `MinimumContrast` is the least contrast text has with its background,
@@ -503,7 +506,9 @@ The terminal's methods are safe from any goroutine:
 - `Feed` shows bytes as if the program wrote them, text and escape
   sequences.
 - `Title`, `Dir` (the directory the shell reported), `Size` (in cells) and
-  `Text` (the screen and its scrollback) read the terminal.
+  `Text` (the screen and its scrollback) read the terminal. `TailText`
+  reads the end of `Text`, from the last rows alone, not the whole
+  scrollback, for what shows at the bottom of a terminal with a long one.
 - `HoveredLink` returns the link Command (Control elsewhere) is held over
   in the view, as `OpenLink` takes it, whether it is a file path, and the
   rectangle of its cells relative to the view: read it after `View` to

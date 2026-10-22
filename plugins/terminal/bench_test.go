@@ -53,3 +53,36 @@ func BenchmarkFrame(b *testing.B) {
 		tt.Frame()
 	}
 }
+
+// BenchmarkTailText measures reading the text of the last rows of a
+// terminal with a full scrollback of 4 MB, against reading all of its text.
+func BenchmarkTailText(b *testing.B) {
+	if err := Load(); err != nil {
+		b.Skip(err)
+	}
+	term, err := New(Options{Conn: newPipe(), Scrollback: 4 << 20})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer term.Close()
+	term.Resize(120, 50)
+	var sb strings.Builder
+	for i := 0; sb.Len() < 16<<20; i++ {
+		fmt.Fprintf(&sb, "%6d  the quick brown fox jumps over the lazy dog %x\r\n", i, i*7919)
+	}
+	term.write([]byte(sb.String()))
+	b.Run("tail", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			term.TailText(100)
+		}
+	})
+	b.Run("text", func(b *testing.B) {
+		b.ReportAllocs()
+		n := 0
+		for b.Loop() {
+			n = len(term.Text())
+		}
+		b.ReportMetric(float64(n), "text-bytes")
+	})
+}

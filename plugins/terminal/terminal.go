@@ -511,6 +511,7 @@ type Terminal struct {
 	held      bool
 	heldSince time.Time
 
+	hidden   atomic.Bool            // suppresses frames while the host omits the view
 	draw     atomic.Pointer[func()] // asks for a frame of the view
 	done     chan struct{}
 	doneOnce sync.Once
@@ -963,6 +964,26 @@ func (t *Terminal) Text() string {
 	return t.term.Text()
 }
 
+// TailText returns the end of Text: the text of the last rows rows of the
+// scrollback and screen, as Text formats them, read from those rows alone,
+// not the whole scrollback, as for what shows on the screen of a terminal
+// with a long one. Its first line shows only in part when its row
+// continues a line soft-wrapped from the row before. all reports that the
+// rows are all of them, and the text all of Text.
+func (t *Terminal) TailText(rows int) (text string, all bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.term == nil {
+		return "", true
+	}
+	_, h := t.term.Size()
+	from := t.term.ScrollbackRows() + h - max(rows, 0)
+	if from <= 0 {
+		return t.term.Text(), true
+	}
+	return t.term.TextFrom(from), false
+}
+
 // Resize sets the size of the screen in cells, for a terminal no view
 // shows, as one a server keeps for a session while no window does: a view
 // sets the size of the terminal it shows.
@@ -1234,9 +1255,18 @@ func (t *Terminal) renderHold(held bool) {
 	t.rmu.Unlock()
 }
 
+// SetVisible controls whether the terminal asks its view to redraw.
+// Hidden terminals still process output and deliver callbacks. The default is
+// visible; showing a hidden terminal requests a fresh frame.
+func (t *Terminal) SetVisible(visible bool) {
+	if t.hidden.Swap(!visible) && visible {
+		t.redraw()
+	}
+}
+
 // redraw asks the view for a frame.
 func (t *Terminal) redraw() {
-	if f := t.draw.Load(); f != nil {
+	if f := t.draw.Load(); f != nil && !t.hidden.Load() {
 		(*f)()
 	}
 }
