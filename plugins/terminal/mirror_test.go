@@ -481,6 +481,28 @@ func TestHistory(t *testing.T) {
 	}
 }
 
+// The tail of the text is the end of Text, all of it once the rows asked
+// for reach the top of the scrollback.
+func TestTailText(t *testing.T) {
+	loadLib(t)
+	term, _ := New(Options{Conn: newPipe()})
+	defer term.Close()
+	term.Resize(20, 6)
+	term.Feed([]byte(lines(0, 30, "line ") + strings.Repeat("abcdefghij", 3) + "\r\n> input"))
+	full := term.Text()
+	text, all := term.TailText(3)
+	if all || text != strings.Repeat("abcdefghij", 3)+"\n> input" {
+		t.Errorf("the last 3 rows %q, %v", text, all)
+	}
+	text, all = term.TailText(4)
+	if all || text != "line 29\n"+strings.Repeat("abcdefghij", 3)+"\n> input" {
+		t.Errorf("the last 4 rows %q, %v", text, all)
+	}
+	if text, all := term.TailText(1000); !all || text != full {
+		t.Errorf("all rows %q, %v, want %q", text, all, full)
+	}
+}
+
 // The other terminal reports the mouse as the program asked the source
 // to: setting a mouse mode picks the events or the format, and resetting
 // one goes back to none or X10's whatever is set, so that the modes off

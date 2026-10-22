@@ -539,6 +539,48 @@ func (t *Terminal) Text() string {
 	return s
 }
 
+// TextFrom returns the text of the rows of the scrollback and screen from
+// row on, counted from the top of the scrollback, as Text formats it: the
+// end of Text, but for its first line, which shows only in part when row
+// continues a line soft-wrapped from the row before. It reads those rows
+// alone, not the whole scrollback.
+func (t *Terminal) TextFrom(row int) string {
+	cols, rows := t.Size()
+	last := t.ScrollbackRows() + rows - 1
+	row = max(row, 0)
+	if row > last {
+		return ""
+	}
+	// The selection's cells are the library's for the call; it reads them
+	// through the address the options hold, which the call does not see.
+	sel := &Selection{size: unsafe.Sizeof(Selection{})}
+	sel.start.size, sel.end.size = unsafe.Sizeof(GridRef{}), unsafe.Sizeof(GridRef{})
+	if terminalGridRef(t.h, point{tag: pointScreen, y: uint32(row)}, &sel.start) != 0 ||
+		terminalGridRef(t.h, point{tag: pointScreen, x: uint16(min(cols-1, 0xFFFF)), y: uint32(last)}, &sel.end) != 0 {
+		return ""
+	}
+	var pin runtime.Pinner
+	defer pin.Unpin()
+	pin.Pin(sel)
+	opts := formatterOptions{size: unsafe.Sizeof(formatterOptions{}), unwrap: true, trim: true, selection: uintptr(unsafe.Pointer(sel))}
+	opts.extra.size = unsafe.Sizeof(opts.extra)
+	opts.extra.screen.size = unsafe.Sizeof(opts.extra.screen)
+	var f uintptr
+	if formatterTerminalNew(0, &f, t.h, opts) != 0 {
+		return ""
+	}
+	defer call(fnFormatterFree, f)
+	var p, n uintptr
+	if !ok(call(fnFormatterFormatAlloc, f, 0, uintptr(unsafe.Pointer(&p)), uintptr(unsafe.Pointer(&n)))) {
+		return ""
+	}
+	s := goString(p, n)
+	if p != 0 {
+		call(fnFree, 0, p, n)
+	}
+	return s
+}
+
 // formatVT is GHOSTTY_FORMATTER_FORMAT_VT: text with escape sequences.
 const formatVT = 1
 

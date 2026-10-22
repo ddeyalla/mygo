@@ -963,6 +963,26 @@ func (t *Terminal) Text() string {
 	return t.term.Text()
 }
 
+// TailText returns the end of Text: the text of the last rows rows of the
+// scrollback and screen, as Text formats them, read from those rows alone,
+// not the whole scrollback, as for what shows on the screen of a terminal
+// with a long one. Its first line shows only in part when its row
+// continues a line soft-wrapped from the row before. all reports that the
+// rows are all of them, and the text all of Text.
+func (t *Terminal) TailText(rows int) (text string, all bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.term == nil {
+		return "", true
+	}
+	_, h := t.term.Size()
+	from := t.term.ScrollbackRows() + h - max(rows, 0)
+	if from <= 0 {
+		return t.term.Text(), true
+	}
+	return t.term.TextFrom(from), false
+}
+
 // Resize sets the size of the screen in cells, for a terminal no view
 // shows, as one a server keeps for a session while no window does: a view
 // sets the size of the terminal it shows.

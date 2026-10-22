@@ -503,7 +503,9 @@ The terminal's methods are safe from any goroutine:
 - `Feed` shows bytes as if the program wrote them, text and escape
   sequences.
 - `Title`, `Dir` (the directory the shell reported), `Size` (in cells) and
-  `Text` (the screen and its scrollback) read the terminal.
+  `Text` (the screen and its scrollback) read the terminal. `TailText`
+  reads the end of `Text`, from the last rows alone, not the whole
+  scrollback, for what shows at the bottom of a terminal with a long one.
 - `HoveredLink` returns the link Command (Control elsewhere) is held over
   in the view, as `OpenLink` takes it, whether it is a file path, and the
   rectangle of its cells relative to the view: read it after `View` to

@@ -263,6 +263,41 @@ func TestScrollback(t *testing.T) {
 	}
 }
 
+// The text from a row is the end of the terminal's text, from any row: of
+// a soft-wrapped line, of wide characters, of blank rows at the bottom and
+// of the alternate screen.
+func TestTextFrom(t *testing.T) {
+	loadLib(t)
+	term, _ := NewTerminal(10, 5, Effects{})
+	defer term.Free()
+	check := func(label string) {
+		t.Helper()
+		_, rows := term.Size()
+		full := term.Text()
+		last := term.ScrollbackRows() + rows
+		if got := term.TextFrom(0); got != full {
+			t.Errorf("%s: from the top %q, want %q", label, got, full)
+		}
+		for row := range last + 2 {
+			if got := term.TextFrom(row); !strings.HasSuffix(full, got) {
+				t.Errorf("%s: from row %d %q, not the end of %q", label, row, got, full)
+			}
+		}
+		if got := term.TextFrom(last); got != "" {
+			t.Errorf("%s: from below the screen %q", label, got)
+		}
+	}
+	for i := range 8 {
+		term.Write([]byte(strings.Repeat(string(rune('a'+i)), 3) + "  \r\n"))
+	}
+	term.Write([]byte("0123456789abcdefghijklmn\r\n\r\n世界世界世界世界\r\nend   "))
+	check("scrollback")
+	term.Write([]byte("\x1b[H\x1b[2Jcleared\r\n"))
+	check("blank rows")
+	term.Write([]byte("\x1b[?1049h\x1b[H\x1b[2Jalt one\r\n\r\nalt two"))
+	check("alternate screen")
+}
+
 // A search finds text in the scrollback and on the screen, ignoring the
 // case of ASCII letters; selecting goes from the newest match to older
 // ones, scrolling to them, and the viewport's matches are where it shows.
