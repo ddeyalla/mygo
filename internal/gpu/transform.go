@@ -122,7 +122,7 @@ func (b *Builder) dropIdleMasks(idle int) {
 		if m.frame == b.frame {
 			continue
 		}
-		if idle -= len(m.image.Pix); idle < 0 {
+		if idle -= cap(m.image.Pix); idle < 0 {
 			clear(b.maskSlots[i:])
 			b.maskSlots = b.maskSlots[:i]
 			return

@@ -139,6 +139,46 @@ func TestIdleMasksStayWithinBudget(t *testing.T) {
 	}
 }
 
+func TestIdleMaskBudgetCountsBackingCapacity(t *testing.T) {
+	// A clip that shrinks keeps its image's backing array through
+	// scene.Image.Resize. Once a later, empty frame makes the mask idle, the
+	// budget must count the capacity it still holds, not only its visible len.
+	sceneWith := func(n int) *scene.Scene {
+		return &scene.Scene{Width: n, Height: n, Ops: []scene.Op{
+			{Kind: scene.OpPushClip, Rect: scene.Rect{W: float32(n), H: float32(n)}, Transform: scene.Rotation(0.01)},
+			{Kind: scene.OpFill, Rect: scene.Rect{W: 10, H: 10}, Color: scene.Color{A: 255}},
+			{Kind: scene.OpPopClip},
+		}}
+	}
+	var b Builder
+	defer b.Release()
+	build := func(n int) { b.Build(sceneWith(n), func(*scene.Image) uintptr { return 1 }) }
+
+	build(3000)
+	if len(b.maskSlots) != 1 {
+		t.Fatalf("first frame made %d masks, want 1", len(b.maskSlots))
+	}
+	capacity := cap(b.maskSlots[0].image.Pix)
+	if capacity <= idleMaskBytes {
+		t.Fatalf("test mask capacity %d is not over the %d idle budget", capacity, idleMaskBytes)
+	}
+	build(100)
+	if len(b.maskSlots) != 1 {
+		t.Fatalf("active shrunken mask was evicted: %d slots", len(b.maskSlots))
+	}
+	if got := cap(b.maskSlots[0].image.Pix); got != capacity {
+		t.Fatalf("resize changed backing capacity: got %d, want %d", got, capacity)
+	}
+
+	// This frame uses no mask, so the shrunken mask is idle. Its len is tiny,
+	// but its backing array is over the idle budget and must be dropped.
+	b.Build(&scene.Scene{Width: 1, Height: 1}, func(*scene.Image) uintptr { return 1 })
+	if len(b.maskSlots) != 0 {
+		t.Fatalf("kept %d idle mask(s) with %d bytes of backing capacity, budget %d",
+			len(b.maskSlots), cap(b.maskSlots[0].image.Pix), idleMaskBytes)
+	}
+}
+
 func TestTransformOutsideAClipLeavesItUnmasked(t *testing.T) {
 	// A scaled badge beside a rounded card of clipped rows: nothing in the
 	// card is transformed, so its clips stay in the shader.
